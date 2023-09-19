@@ -201,6 +201,10 @@ static const struct cpu_profile cpu_profiles[] = {
      0x601a, 0x4760,
      0x80000000, 0x80000000,
      0x80000000, 0x80000000},
+    {"x2000",
+     0xa108, 0xeaef,
+     0xb2401000, 0xb2401800,
+     0x80100000, 0x80100000},
     {NULL}
 };
 
