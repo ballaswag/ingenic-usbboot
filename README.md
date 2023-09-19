@@ -4,9 +4,9 @@
 `make`
 
 ## Running
-To see console output, a USB to TTL adapter is needed. For the Creality K1 board, the serial pinout is by the reset/boot bottom.
+To see console output, a USB to TTL adapter is needed. For the Creality K1 board, the serial pinout is by the reset/boot botton.
 
-To Enter USB Boot mode. For the K1, hold the boot button, while holding boot hold down reset, let go boot then reset.
+To Enter USB Boot mode for the K1, hold the boot button, while holding boot hold down reset, let go reset then boot.
 
 ```./usbboot --cpu x2000 --stage1 ./spl.bin --wait 1 --stage2 ./uboot.bin```
 
