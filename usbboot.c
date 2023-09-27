@@ -363,6 +363,44 @@ void mmc_read(uint32_t offset, uint32_t length, unsigned char* out) {
   }
 }
 
+void mmc_read_partition(uint32_t offset, uint32_t length, const char* fname) {
+  enable_mmc();
+  if(length == 0)
+    die("invalid partition length: %d", length);
+
+  printf("dumping parition at offset 0x%x, size 0x%x\n", offset, length);
+
+  uint32_t chunk_size = 1024 * 1024 * 2; // 2mb
+  unsigned char chunk[chunk_size];
+
+  FILE* f = fopen(fname, "wb");
+  if(f == NULL)
+    die("Can't open file '%s' for writing", fname);
+  
+  uint32_t cursor = offset;
+  uint32_t end = offset + length;
+  while (cursor < end) {
+    uint32_t read_size = (end - cursor) >= chunk_size
+      ? chunk_size
+      : (end - cursor);
+
+    uint32_t start = (uint32_t)time(NULL);
+    mmc_read(cursor, read_size, chunk);
+    uint32_t duration = (uint32_t)time(NULL) - start;
+
+    cursor += read_size;
+
+    printf("%.2f%% completed (%.2fMB/s)\n",
+	   (cursor - offset) / (float)length * 100,
+	   (read_size / 1024 / 1024) / (float)duration);
+
+    if (fwrite(chunk, read_size, 1, f) != 1)
+      die("Failed to write data to %x", fname);
+  }
+
+  fclose(f);
+}
+
 void mmc_write(uint32_t offset, uint32_t length, unsigned char* in) {
   WriteCmd *write = (WriteCmd*) malloc(sizeof(WriteCmd));
   memset(write, 0, sizeof(WriteCmd));
@@ -536,7 +574,7 @@ int main(int argc, char* argv[])
         OPT_CPUINFO,
         OPT_START1, OPT_START2, OPT_FLUSH_CACHES,
         OPT_RENUMERATE, OPT_WAIT, OPT_SWAP_OTA,
-	OPT_FORCE_SWAP_OTA
+	OPT_FORCE_SWAP_OTA, OPT_DUMP_PARITION
     };
 
     static const struct option long_options[] = {
@@ -549,6 +587,8 @@ int main(int argc, char* argv[])
         {"cpuinfo", no_argument, 0, OPT_CPUINFO},
         {"addr", required_argument, 0, 'a'},
         {"length", required_argument, 0, 'l'},
+        {"partition-size", required_argument, 0, 's'},
+        {"partition-offset", required_argument, 0, 'o'},
         {"upload", required_argument, 0, 'u'},
         {"download", required_argument, 0, 'd'},
         {"start1", required_argument, 0, OPT_START1},
@@ -557,7 +597,8 @@ int main(int argc, char* argv[])
         {"renumerate", no_argument, 0, OPT_RENUMERATE},
         {"wait", required_argument, 0, OPT_WAIT},
         {"swap-ota", no_argument, 0, OPT_SWAP_OTA},
-        {"force-swap-ota", no_argument, 0, OPT_FORCE_SWAP_OTA},	
+        {"force-swap-ota", no_argument, 0, OPT_FORCE_SWAP_OTA},
+        {"dump-partition", required_argument, 0, OPT_DUMP_PARITION},	
         {"help", no_argument, 0, 'h'},
         {"verbose", no_argument, 0, 'v'},
         {0, 0, 0, 0}
@@ -565,7 +606,9 @@ int main(int argc, char* argv[])
 
     int opt;
     int data_length = -1;
-    while((opt = getopt_long(argc, argv, "bhvc:1:2:a:l:u:d:", long_options, NULL)) != -1) {
+    uint32_t partition_offset = 0;
+    uint32_t partition_size = 0;
+    while((opt = getopt_long(argc, argv, "bhvc:1:2:a:l:s:o:u:d:", long_options, NULL)) != -1) {
         unsigned long param;
         char* end;
         switch(opt) {
@@ -579,7 +622,18 @@ int main(int argc, char* argv[])
             param = strtoul(optarg, &end, 0);
             if(*end)
                 die("Invalid argument '%s'", optarg);
+
             break;
+	case 's':
+            partition_size = strtoul(optarg, &end, 0);
+            if(*end)
+                die("Invalid argument '%s'", optarg);
+	    break;
+        case 'o':
+            partition_offset = strtoul(optarg, &end, 0);
+            if(*end)
+                die("Invalid argument '%s'", optarg);
+	    break;
         default:
             break;
         }
@@ -651,10 +705,20 @@ int main(int argc, char* argv[])
             verbose("Force OTA to boot ota:kernel");
 	    swap_ota_partition(true);
             break;
+        case OPT_DUMP_PARITION:
+	    if (partition_size <= 0)
+	      die("must provide a positive partition length with option --partition-size");
+
+            verbose("Dump a partition to file");
+	    mmc_read_partition(partition_offset, partition_size, optarg);
+            break;
+	case 'o':
+	case 's':
+	  break;
         default:
             /* should only happen due to a bug */
-            die("Bad option");
-            break;
+	    die("Bad option");
+	    break;
         }
     }
 
